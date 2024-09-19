@@ -27,7 +27,7 @@ public class IWXXM_DataLoader_Service {
 
             String id = null;
             if (jsonNode.has("id")) {
-                id = jsonNode.get("id").asText();  // Extract the ID from the JSON
+                id = jsonNode.get("id").asText();  // Extract the ID from the original JSON
             } else {
                 System.out.println("ID not found in the message content.");
                 return;

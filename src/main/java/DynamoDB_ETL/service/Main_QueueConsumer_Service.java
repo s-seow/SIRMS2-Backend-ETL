@@ -97,8 +97,8 @@ public class Main_QueueConsumer_Service {
         System.out.println(propertiesString);
 
         // 2. Print the main text body next
-        String xmlContent = message.getText();
-        System.out.printf("TextMessage received: '%s'%n", xmlContent);
+        String messageContent = message.getText();
+        System.out.printf("TextMessage received: '%s'%n", messageContent);
 
         // 3. Print additional information: logTimestamp (sort key), messageID, messageDestination
         String jmsMessageID = message.getJMSMessageID();
@@ -107,18 +107,18 @@ public class Main_QueueConsumer_Service {
         System.out.printf(" %s%n", message.getJMSMessageID());
         System.out.printf(" Topic:%s%n", jmsDestination);
 
-        // To determine data
+        // To determine type of data
         if (jmsDestination.contains("fixm")) {
             System.out.println("Processing FIXM data...");
-            FIXM_DataLoader_Service.processMessageContent(xmlContent, formattedTimestamp, jmsMessageID, jmsDestination);
+            FIXM_DataLoader_Service.processMessageContent(messageContent, formattedTimestamp, jmsMessageID, jmsDestination);
         }
         else if (jmsDestination.contains("iwxxm")) {
             System.out.println("Processing IWXXM data...");
-            IWXXM_DataLoader_Service.processMessageContent(xmlContent, formattedTimestamp, jmsMessageID, jmsDestination);
+            IWXXM_DataLoader_Service.processMessageContent(messageContent, formattedTimestamp, jmsMessageID, jmsDestination);
         }
         else if (jmsDestination.contains("met-report")) {
             System.out.println("Processing MET Report data...");
-            METReport_DataLoader_Service.processMessageContent(xmlContent, formattedTimestamp, jmsMessageID, jmsDestination);
+            METReport_DataLoader_Service.processMessageContent(messageContent, formattedTimestamp, jmsMessageID, jmsDestination);
         }
         else {
             System.out.println("Skipping...");

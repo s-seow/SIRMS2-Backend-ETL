@@ -1,7 +1,6 @@
 package DynamoDB_ETL.service;
 
-import DynamoDB_ETL.util.METReport_WSSL_DataConverter;
-import DynamoDB_ETL.util.METReport_WSSS_DataConverter;
+import DynamoDB_ETL.util.METReport_DataConverter;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -21,20 +20,25 @@ public class METReport_DataLoader_Service {
     @Autowired
     private DynamoDbClient dynamoDbClient;
 
-    public void processMessageContent(String xmlContent, String logTimestamp, String jmsMessageID, String jmsDestination) {
+    public void processMessageContent(String jsonContent, String logTimestamp, String jmsMessageID, String jmsDestination) {
+        try {
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(jsonContent);
 
-        String jsonStr = null;
+            String id = rootNode.path("id").asText();
+            String metarData = rootNode.path("properties").path("content").path("value").asText();
 
-        if (jmsDestination.endsWith("wsss")) {
-            jsonStr = METReport_WSSS_DataConverter.convertWSSSMETDataToJson(xmlContent);
-        } else if (jmsDestination.endsWith("wssl")) {
-            jsonStr = METReport_WSSL_DataConverter.convertWSSLMETDataToJson(xmlContent);
-        }
+            String jsonStr = METReport_DataConverter.convertMETDataToJson(id, metarData);
 
-        if (jsonStr != null) {
-            processMETReportAndStoreInDynamoDB(jsonStr, logTimestamp, jmsMessageID, jmsDestination);
-        } else {
-            System.out.println("XML structure not recognized.");
+            if (jsonStr != null) {
+                processMETReportAndStoreInDynamoDB(jsonStr, logTimestamp, jmsMessageID, jmsDestination);
+            } else {
+                System.out.println("METAR data structure not recognized.");
+            }
+
+        } catch (Exception e) {
+            System.err.println("Failed to process message content: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -43,13 +47,13 @@ public class METReport_DataLoader_Service {
             ObjectMapper objectMapper = new ObjectMapper();
             JsonNode jsonNode = objectMapper.readTree(jsonStr);
 
+            if (!jsonNode.has("id")) {
+                throw new RuntimeException("Missing required fields: id");
+            }
+
+            // Add the logTimestamp, messageID, and messageDestination to the JSON
             if (jsonNode instanceof ObjectNode) {
                 ObjectNode objectNode = (ObjectNode) jsonNode;
-
-                if (!objectNode.has("id") || !objectNode.has("dateTime")) {
-                    throw new RuntimeException("Missing required fields: id or dateTime");
-                }
-
                 if (logTimestamp != null) {
                     objectNode.put("logTimestamp", logTimestamp);
                 }
@@ -61,6 +65,7 @@ public class METReport_DataLoader_Service {
                 }
             }
 
+            // Convert the JSON to DynamoDB attribute values
             Map<String, AttributeValue> item = convertJsonNodeToAttributeValue(jsonNode);
 
             PutItemRequest putItemRequest = PutItemRequest.builder()
@@ -68,6 +73,7 @@ public class METReport_DataLoader_Service {
                     .item(item)
                     .build();
 
+            System.out.println("Final JSON to insert: " + jsonNode);
             dynamoDbClient.putItem(putItemRequest);
 
             System.out.printf("Item successfully inserted: %s%n", item);
@@ -82,20 +88,18 @@ public class METReport_DataLoader_Service {
     private Map<String, AttributeValue> convertJsonNodeToAttributeValue(JsonNode jsonNode) {
         Map<String, AttributeValue> attributeValueMap = new HashMap<>();
 
-        if (jsonNode.isObject()) {
-            jsonNode.fields().forEachRemaining(entry -> {
-                String key = entry.getKey();
-                JsonNode value = entry.getValue();
+        jsonNode.fields().forEachRemaining(entry -> {
+            String key = entry.getKey();
+            JsonNode value = entry.getValue();
 
-                if (value.isObject()) {
-                    attributeValueMap.put(key, AttributeValue.builder().m(convertJsonNodeToAttributeValue(value)).build());
-                } else if (value.isArray()) {
-                    attributeValueMap.put(key, AttributeValue.builder().l(convertJsonArrayToAttributeValueList(value)).build());
-                } else {
-                    attributeValueMap.put(key, AttributeValue.builder().s(value.asText()).build());
-                }
-            });
-        }
+            if (value.isObject()) {
+                attributeValueMap.put(key, AttributeValue.builder().m(convertJsonNodeToAttributeValue(value)).build());
+            } else if (value.isArray()) {
+                attributeValueMap.put(key, AttributeValue.builder().l(convertJsonArrayToAttributeValueList(value)).build());
+            } else {
+                attributeValueMap.put(key, AttributeValue.builder().s(value.asText()).build());
+            }
+        });
 
         return attributeValueMap;
     }
