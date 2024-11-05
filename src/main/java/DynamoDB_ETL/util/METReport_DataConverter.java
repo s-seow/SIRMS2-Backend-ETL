@@ -13,7 +13,7 @@ public class METReport_DataConverter {
             // Add 'id' and 'datetime' to the JSON structure
             metReportJson.put("id", id);
 
-            // 1. Split the report into meaningful parts by keywords
+            // 1. Split the report into parts by keywords
             String[] sections = splitByKeywords(metarData);
 
             // 2. Extract each section's respective data
@@ -95,12 +95,12 @@ public class METReport_DataConverter {
 
         String[] firstLineParts = line.trim().split("\\s+");
         if (firstLineParts.length >= 3) {
-            String reportType = firstLineParts[0];
+            // String reportType = firstLineParts[0];
             String station = firstLineParts[1];
             String reportDateTime = firstLineParts[2];
 
-            metReportJson.put("reportType", reportType);
-            metReportJson.put("station", station);
+            // metReportJson.put("reportType", reportType);
+            metReportJson.put("aerodrome", station);
             metReportJson.put("dateTime", reportDateTime);
         } else {
             throw new IllegalArgumentException("Basic report details missing or malformed.");
@@ -128,42 +128,76 @@ public class METReport_DataConverter {
 
                     // Iterate over parts to extract TDZ, MID, END and their corresponding VRB
                     for (int i = 1; i < parts.length; i++) {
-                        if (parts[i].equals("TDZ")) {
-                            tdz = parts[i + 1]; // Extract the TDZ value
-                        } else if (parts[i].equals("MID")) {
-                            mid = parts[i + 1]; // Extract the MID value
-                        } else if (parts[i].equals("END")) {
-                            end = parts[i + 1]; // Extract the END value
-                        } else if (parts[i].equals("VRB")) {
-                            // Dynamically assign VRB to the nearest section (TDZ, MID, END)
-                            if (i > 1 && parts[i - 2].equals("TDZ")) {
-                                tdzVRB = "VRB BTN " + parts[i + 2] + " AND " + parts[i + 4];
-                            } else if (i > 1 && parts[i - 2].equals("MID")) {
-                                midVRB = "VRB BTN " + parts[i + 2] + " AND " + parts[i + 4];
-                            } else if (i > 1 && parts[i - 2].equals("END")) {
-                                endVRB = "VRB BTN " + parts[i + 2] + " AND " + parts[i + 4];
+                        if (i + 1 < parts.length) {
+                            if (parts[i].equals("TDZ")) {
+                                tdz = parts[i+1]; // Extract the TDZ value
+                            } else if (parts[i].equals("MID")) {
+                                mid = parts[i+1]; // Extract the MID value
+                            } else if (parts[i].equals("END")) {
+                                end = parts[i+1]; // Extract the END value
+                            }
+                        }
+
+                        // few cases possible:
+                        // 1. TDZ 120/5KT (normal)
+                        // 2. TDZ 120/5KT VRB BTN 100/ AND 130/ parts[i-2]
+                        // 3. TDZ VRB3KT parts[i-1]
+                        // 4. TDZ VRB BTN 100/ AND 130/2KT parts[i-1]
+
+                        if (parts[i].contains("VRB")) {
+                            // case 4: TDZ VRB BTN 100/ AND 130/2KT
+                            if (i + 4 < parts.length && parts[i + 1].equals("BTN")) {
+                                if (i > 1 && parts[i-1].equals("TDZ")) {
+                                    tdzVRB = parts[i+2] + " AND " + parts[i+4];
+                                    // return 100/ AND 130/2KT to parser (.contains("AND") should be second)
+                                }
+                                else if (i > 1 && parts[i-1].equals("MID")) {
+                                    midVRB = parts[i+2] + " AND " + parts[i+4];
+                                }
+                                else if (i > 1 && parts[i-1].equals("END")) {
+                                    endVRB = parts[i+2] + " AND " + parts[i+4];
+                                }
+                            }
+
+                            // case 3: TDZ VRB3KT
+                            else if (i > 1 && parts[i-1].equals("TDZ")) {
+                                tdzVRB = parts[i];
+                                // return VRB3KT to parser (.contains("KT") should be last)
+                            } else if (i > 1 && parts[i-1].equals("MID")) {
+                                midVRB = parts[i];
+                            } else if (i > 1 && parts[i-1].equals("END")) {
+                                endVRB = parts[i];
+                            }
+
+                            // case 2: TDZ 120/5KT VRB BTN 100/ AND 130/
+                            else if (i > 1 && parts[i-2].equals("TDZ")) {
+                                tdzVRB = "VRB BTN " + parts[i+2] + " AND " + parts[i+4];
+                                // return VRB BTN 100/ AND 130/ to parser (.contains("BTN") should be first)
+                            } else if (i > 1 && parts[i-2].equals("MID")) {
+                                midVRB = "VRB BTN " + parts[i+2] + " AND " + parts[i+4];
+                            } else if (i > 1 && parts[i-2].equals("END")) {
+                                endVRB = "VRB BTN " + parts[i+2] + " AND " + parts[i+4];
                             }
                         }
                     }
 
-                    // Add TDZ, MID, END, and their corresponding VRB BTN if available
                     if (!tdz.isEmpty()) {
-                        windDetails.put("TDZ", tdz);
+                        windDetails.set("TDZ", parseWindValue(tdz));
                     }
                     if (!tdzVRB.isEmpty()) {
-                        windDetails.put("TDZ_VariableWind", tdzVRB);
+                        windDetails.set("TDZ_VariableWind", parseVariableWindValue(tdzVRB));
                     }
                     if (!mid.isEmpty()) {
-                        windDetails.put("MID", mid);
+                        windDetails.set("MID", parseWindValue(mid));
                     }
                     if (!midVRB.isEmpty()) {
-                        windDetails.put("MID_VariableWind", midVRB);
+                        windDetails.set("MID_VariableWind", parseVariableWindValue(midVRB));
                     }
                     if (!end.isEmpty()) {
-                        windDetails.put("END", end);
+                        windDetails.set("END", parseWindValue(end));
                     }
                     if (!endVRB.isEmpty()) {
-                        windDetails.put("END_VariableWind", endVRB);
+                        windDetails.set("END_VariableWind", parseVariableWindValue(endVRB));
                     }
 
                     windDataNode.set(runway, windDetails);
@@ -175,19 +209,86 @@ public class METReport_DataConverter {
     }
 
 
+    private static ObjectNode parseWindValue(String windValue) {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode windNode = mapper.createObjectNode();
+
+        if (windValue.contains("/")) {
+            String[] parts = windValue.split("/");
+            if (parts.length == 2) {
+                String angle = parts[0];
+                String speed = parts[1];
+
+                String numberPortion = speed.replaceAll("[^0-9]", "");
+                String unitPortion = speed.replaceAll("[0-9]", "");
+
+                windNode.put("windDirection", angle);
+                windNode.put("windSpeed", numberPortion);
+                windNode.put("windSpeedUom", unitPortion);
+            }
+        }
+
+        return windNode;
+    }
+
+
+    private static ObjectNode parseVariableWindValue(String vrbValue) {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode vrbNode = mapper.createObjectNode();
+
+        if (vrbValue.contains("BTN")) {
+            // return VRB BTN 100/ AND 130/ to parser (.contains("BTN") should be first)
+            String[] parts = vrbValue.replace("VRB BTN", "").split("AND");
+            if (parts.length == 2) {
+                String direction1 = parts[0].split("/")[0].trim();
+                String direction2 = parts[1].split("/")[0].trim();
+
+                vrbNode.put("variableWindDirection", direction1 + "-" + direction2);
+            }
+        }
+
+        else if (vrbValue.contains("AND")) {
+            // return 100/ AND 130/2KT to parser (.contains("AND") should be second)
+            String[] vrbParts = vrbValue.split("AND");
+            if (vrbParts.length == 2) {
+                String direction1 = vrbParts[0].split("/")[0].trim();
+                String direction2 = vrbParts[1].split("/")[0].trim();
+                String speed = vrbParts[1].split("/")[1].trim();
+
+                String numberPortion = speed.replaceAll("[^0-9]", "");
+                String unitPortion = speed.replaceAll("[0-9]", "");
+
+                vrbNode.put("variableWindDirection", direction1 + "-" + direction2);
+                vrbNode.put("variableWindSpeed", numberPortion);
+                vrbNode.put("variableWindSpeedUom", unitPortion);
+            }
+        }
+
+        else if (vrbValue.contains("KT")) {
+            // return VRB3KT to parser (.contains("KT") should be last)
+            String speed = vrbValue.replace("VRB", "").trim();
+
+            String numberPortion = speed.replaceAll("[^0-9]", "");
+            String unitPortion = speed.replaceAll("[0-9]", "");
+
+            vrbNode.put("variableWindSpeed", numberPortion);
+            vrbNode.put("variableWindSpeedUom", unitPortion);
+        }
+
+        return vrbNode;
+    }
+
+
     private static void extractRunwayVisibilityData(String line, ObjectNode metReportJson) {
-        //System.out.println("Processing VIS: " + line); ERROR CHECK
         ObjectMapper mapper = new ObjectMapper();
         ObjectNode visData = mapper.createObjectNode();
 
         String[] runwayParts = line.split("RWY");
 
-        // Iterate over each runway section
         for (String runwayPart : runwayParts) {
             if (!runwayPart.trim().isEmpty()) {
                 String[] parts = runwayPart.trim().split("\\s+");
 
-                // The first part should be the runway identifier, e.g., '02L', '02C', '02R'
                 String runway = "RWY " + parts[0];
 
                 ObjectNode visibilityDetails = mapper.createObjectNode();
@@ -196,22 +297,26 @@ public class METReport_DataConverter {
 
                 for (int i = 1; i < parts.length; i++) {
                     if (parts[i].equals("TDZ")) {
-                        tdz = parts[i+1]; // Extract the TDZ value
+                        tdz = parts[i + 1]; // Extract the TDZ value
                     } else if (parts[i].equals("MID")) {
-                        mid = parts[i+1]; // Extract the MID value
+                        mid = parts[i + 1]; // Extract the MID value
                     } else if (parts[i].equals("END")) {
-                        end = parts[i+1]; // Extract the END value
+                        end = parts[i + 1]; // Extract the END value
                     }
                 }
 
+                // Split visibility values into number and unit
                 if (!tdz.isEmpty()) {
-                    visibilityDetails.put("TDZ", tdz);
+                    ObjectNode tdzVisibility = parseVisibilityValue(tdz);
+                    visibilityDetails.set("TDZ", tdzVisibility);
                 }
                 if (!mid.isEmpty()) {
-                    visibilityDetails.put("MID", mid);
+                    ObjectNode midVisibility = parseVisibilityValue(mid);
+                    visibilityDetails.set("MID", midVisibility);
                 }
                 if (!end.isEmpty()) {
-                    visibilityDetails.put("END", end);
+                    ObjectNode endVisibility = parseVisibilityValue(end);
+                    visibilityDetails.set("END", endVisibility);
                 }
 
                 visData.set(runway, visibilityDetails);
@@ -219,6 +324,19 @@ public class METReport_DataConverter {
         }
 
         metReportJson.set("visibility", visData);
+    }
+
+    private static ObjectNode parseVisibilityValue(String visibilityValue) {
+        ObjectMapper mapper = new ObjectMapper();
+        ObjectNode visibilityNode = mapper.createObjectNode();
+
+        String numberPortion = visibilityValue.replaceAll("[^0-9]", "");
+        String unitPortion = visibilityValue.replaceAll("[0-9]", "");
+
+        visibilityNode.put("visibility", numberPortion);
+        visibilityNode.put("visibilityUom", unitPortion);
+
+        return visibilityNode;
     }
 
 

@@ -1,6 +1,7 @@
 package DynamoDB_ETL.service;
 
 import org.apache.qpid.jms.JmsConnectionFactory;
+import org.apache.qpid.jms.message.JmsBytesMessage;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class Main_QueueConsumer_Service {
     private final IWXXM_DataLoader_Service IWXXM_DataLoader_Service;
     private final METReport_DataLoader_Service METReport_DataLoader_Service;
 
+
     public Main_QueueConsumer_Service(FIXM_DataLoader_Service FIXM_DataLoader_Service,
                                       IWXXM_DataLoader_Service IWXXM_DataLoader_Service,
                                       METReport_DataLoader_Service METReport_DataLoader_Service) {
@@ -40,13 +42,14 @@ public class Main_QueueConsumer_Service {
         this.METReport_DataLoader_Service = METReport_DataLoader_Service;
     }
 
+
     @PostConstruct
     public void start() throws Exception {
         System.out.printf("QueueConsumer is connecting to Solace router %s...%n", solaceHost);
 
-        String connectionURI = "amqps://broker.swimapisg.info:5675?transport.trustAll=true&transport.verifyHost=false";
+        // String connectionURI = "amqps://broker.swimapisg.info:5675?transport.trustAll=true&transport.verifyHost=false";
 
-        ConnectionFactory connectionFactory = new JmsConnectionFactory(solaceUsername, solacePassword, connectionURI);
+        ConnectionFactory connectionFactory = new JmsConnectionFactory(solaceUsername, solacePassword, solaceHost);
 
         try (JMSContext context = connectionFactory.createContext()) {
 
@@ -63,20 +66,57 @@ public class Main_QueueConsumer_Service {
                 Message message = consumer.receive();
 
                 if (message instanceof TextMessage) {
-                    processMessage((TextMessage) message);
-                } else {
-                    System.out.printf("Message received: %s%n", message.getJMSType());
-                    System.out.printf(" %s_%s_%s_%s%n", message.getJMSMessageID(), message.getJMSDestination(), message.getJMSReplyTo(), message.getStringProperty("JMSXDeliveryCount"));
+                    processTextMessage((TextMessage) message);
+                }
+
+                else if (message instanceof JmsBytesMessage) {
+                    processBytesMessage((BytesMessage) message);
+                }
+
+                else {
+                    System.out.printf("Message type received: '%s'%n", message.getJMSType());
+                    System.out.printf(" %s_%s_%s_%s%n", message.getJMSDestination(), message.getJMSMessageID(), message.getJMSReplyTo(), message.getStringProperty("JMSXDeliveryCount"));
+                    System.out.println();
                 }
             }
         }
     }
 
-    private void processMessage(TextMessage message) throws JMSException {
-        // Extracting and logging message properties
-        long JMSTimestamp = message.getJMSTimestamp();
-        LocalDateTime logTimestamp = LocalDateTime.ofInstant(Instant.ofEpochMilli(JMSTimestamp), ZoneOffset.UTC);
-        String formattedTimestamp = logTimestamp.format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
+
+    private void processBytesMessage(BytesMessage message) throws JMSException {
+        byte[] byteData = new byte[(int) message.getBodyLength()];
+        message.readBytes(byteData);
+        message.reset();
+        String stringMessage = new String(byteData);
+        System.out.printf("BytesMessage received: '%s'%n", stringMessage);
+
+        String formattedTimestamp = convertJMSTimestamp(message);
+        String jmsDestination = message.getJMSDestination().toString();
+
+        System.out.printf(" logTimestamp: %s%n", formattedTimestamp);
+        System.out.printf(" Topic:%s%n", jmsDestination);
+        System.out.println("BytesMessage received. Skipping...");
+
+        System.out.println();
+    }
+
+
+    public static String convertJMSTimestamp(Message message) throws JMSException {
+
+        long jmsTimestamp = message.getJMSTimestamp();
+        LocalDateTime logTimestamp = LocalDateTime.ofInstant(Instant.ofEpochMilli(jmsTimestamp), ZoneOffset.UTC);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+
+        return logTimestamp.format(formatter);
+    }
+
+
+    private void processTextMessage(TextMessage message) throws JMSException {
+
+        String messageContent = message.getText();
+        String formattedTimestamp = convertJMSTimestamp(message);
+        String jmsMessageID = message.getJMSMessageID();
+        String jmsDestination = message.getJMSDestination().toString();
 
         Enumeration<?> propertyNames = message.getPropertyNames();
         StringBuilder propertiesString = new StringBuilder("Message Content: [");
@@ -97,14 +137,11 @@ public class Main_QueueConsumer_Service {
         System.out.println(propertiesString);
 
         // 2. Print the main text body next
-        String messageContent = message.getText();
         System.out.printf("TextMessage received: '%s'%n", messageContent);
 
         // 3. Print additional information: logTimestamp (sort key), messageID, messageDestination
-        String jmsMessageID = message.getJMSMessageID();
-        String jmsDestination = message.getJMSDestination().toString();
         System.out.printf(" logTimestamp: %s%n", formattedTimestamp);
-        System.out.printf(" %s%n", message.getJMSMessageID());
+        System.out.printf(" %s%n", jmsMessageID);
         System.out.printf(" Topic:%s%n", jmsDestination);
 
         // To determine type of data

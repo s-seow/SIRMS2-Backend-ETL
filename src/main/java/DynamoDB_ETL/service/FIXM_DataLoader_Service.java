@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 public class FIXM_DataLoader_Service {
@@ -34,9 +35,9 @@ public class FIXM_DataLoader_Service {
     public void processMessageContent(String xmlContent, String logTimestamp, String jmsMessageID, String jmsDestination) {
         String jsonStr = null;
 
-        if (jmsDestination.endsWith("dep")) {
+        if (jmsDestination.contains("dep")) {
             jsonStr = FIXM_Dep_DataConverter.convertFIXMDepXmlToJson(xmlContent);
-        } else if (jmsDestination.endsWith("fpl")) {
+        } else if (jmsDestination.contains("fpl")) {
             jsonStr = FIXM_Fpl_DataConverter.convertFIXMFplXmlToJson(xmlContent);
         }
 
@@ -65,16 +66,35 @@ public class FIXM_DataLoader_Service {
                     }
                 }
 
-                Map<String, AttributeValue> item = convertJsonNodeToAttributeValue(jsonNode);
+                String originatorChecker = jsonNode.has("gufiOriginator") ? jsonNode.get("gufiOriginator").asText() : null;
 
-                PutItemRequest putItemRequest = PutItemRequest.builder()
-                        .tableName("FIXM_FlightData")
-                        .item(item)
-                        .build();
-                dynamoDbClient.putItem(putItemRequest);
+                if ("CAAS".equals(originatorChecker)) {
 
-                System.out.printf("Item successfully inserted: %s%n", item);
-                System.out.println();
+                    Map<String, AttributeValue> item = convertJsonNodeToAttributeValue(jsonNode);
+
+                    PutItemRequest putItemRequest = PutItemRequest.builder()
+                            .tableName("FIXM_FlightData")
+                            .item(item)
+                            .build();
+                    dynamoDbClient.putItem(putItemRequest);
+
+                    System.out.printf("Item successfully inserted: %s%n", item);
+                    System.out.println();
+
+                } else if ("simulator".equals(originatorChecker)) {
+
+                    Map<String, AttributeValue> item = convertJsonNodeToAttributeValue(jsonNode);
+
+                    PutItemRequest putItemRequest = PutItemRequest.builder()
+                            .tableName("FIXM_SimulatorData")
+                            .item(item)
+                            .build();
+                    dynamoDbClient.putItem(putItemRequest);
+
+                    System.out.println("Simulator entry detected.");
+                    System.out.printf("Item successfully inserted: %s%n", item);
+                    System.out.println();
+                }
 
             } catch (Exception e) {
                 System.err.println("Failed to process JSON and store in DynamoDB: " + e.getMessage());
@@ -83,6 +103,7 @@ public class FIXM_DataLoader_Service {
         } else {
             System.err.println("Failed to convert XML to JSON");
         }
+
     }
 
     private Map<String, AttributeValue> convertJsonNodeToAttributeValue(JsonNode jsonNode) {
