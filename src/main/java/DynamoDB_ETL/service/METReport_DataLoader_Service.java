@@ -14,6 +14,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+
 @Service
 public class METReport_DataLoader_Service {
 
@@ -51,17 +57,57 @@ public class METReport_DataLoader_Service {
                 throw new RuntimeException("Missing required fields: id");
             }
 
-            // Add the logTimestamp, messageID, and messageDestination to the JSON
+            String datePart = logTimestamp.substring(0, 10);  // Extract date from logTimestamp (e.g., 2024-10-18)
+
+            String dateTime = jsonNode.has("dateTime") ? jsonNode.get("dateTime").asText() : null;
+
+            String refinedDateTime = null;
+            if (dateTime != null && dateTime.length() == 6) {
+                // ddHHmm format (day, hour, minute)
+                String day = dateTime.substring(0, 2);
+                String hour = dateTime.substring(2, 4);
+                String minute = dateTime.substring(4, 6);
+
+                String second = "00";
+                String millisecond = "000";
+
+                LocalDate logDate = LocalDate.parse(datePart);
+
+                int dayOfMonth = Integer.parseInt(day);
+                if (dayOfMonth != logDate.getDayOfMonth()) {
+                    logDate = logDate.withDayOfMonth(dayOfMonth);
+                }
+
+                LocalTime time = LocalTime.of(
+                        Integer.parseInt(hour),
+                        Integer.parseInt(minute),
+                        Integer.parseInt(second),
+                        Integer.parseInt(millisecond) * 1_000_000
+                );
+
+                LocalDateTime localDateTime = LocalDateTime.of(logDate, time);
+
+                refinedDateTime = localDateTime.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"));
+
+            } else {
+                // Fallback to logTimestamp if no valid dateTime from METAR
+                refinedDateTime = logTimestamp;
+            }
+
+            // Add refinedDateTime, messageID, and messageDestination to the JSON
             if (jsonNode instanceof ObjectNode) {
                 ObjectNode objectNode = (ObjectNode) jsonNode;
-                if (logTimestamp != null) {
-                    objectNode.put("logTimestamp", logTimestamp);
+                if (refinedDateTime != null) {
+                    objectNode.put("dateTime", refinedDateTime);
                 }
                 if (messageID != null) {
                     objectNode.put("messageID", messageID);
                 }
                 if (messageDestination != null) {
                     objectNode.put("messageDestination", messageDestination);
+                }
+                if (logTimestamp != null) {
+                    objectNode.put("logTimestamp", logTimestamp);
                 }
             }
 
@@ -84,6 +130,7 @@ public class METReport_DataLoader_Service {
             e.printStackTrace();
         }
     }
+
 
     private Map<String, AttributeValue> convertJsonNodeToAttributeValue(JsonNode jsonNode) {
         Map<String, AttributeValue> attributeValueMap = new HashMap<>();

@@ -1,3 +1,3 @@
 # How to Run
-- download maven dependencies
-- run DynamoDbETLApplication
+- Download maven dependencies
+- Run DynamoDbETLApplication
