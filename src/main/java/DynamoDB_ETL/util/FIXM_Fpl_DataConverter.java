@@ -107,6 +107,7 @@ public class FIXM_Fpl_DataConverter {
         if (departureElem != null) {
             JsonObject departure = new JsonObject();
             departure.addProperty("estimatedOffBlockTime", getAttribute(departureElem, "estimatedOffBlockTime"));
+            departure.addProperty("actualTimeOfDeparture", getAttribute(getElement(departureElem, "departure"), "actualTimeOfDeparture"));
             departure.addProperty("departureAerodrome", getAttribute(getElement(departureElem, "fx:aerodrome"), "locationIndicator"));
             flight.add("departure", departure);
         }
@@ -223,14 +224,37 @@ public class FIXM_Fpl_DataConverter {
     }
 
     private static Element getElement(Element parent, String tagName) {
-        if (parent == null) return null;
-        String[] parts = tagName.split(":");
-        return (Element) parent.getElementsByTagNameNS(NAMESPACE.get(parts[0]), parts[1]).item(0);
-    }
+        if (parent == null || tagName == null) return null;
 
+        String[] parts = tagName.split(":", 2); // Split into at most 2 parts
+        if (parts.length == 1) {
+            // No namespace prefix
+            return (Element) parent.getElementsByTagName(tagName).item(0);
+        }
+
+        String namespace = NAMESPACE.get(parts[0]);
+        if (namespace == null) {
+            System.err.println("Namespace not found for prefix: " + parts[0]);
+            return null;
+        }
+
+        return (Element) parent.getElementsByTagNameNS(namespace, parts[1]).item(0);
+    }
     private static NodeList getElements(Element parent, String tagName) {
-        if (parent == null) return null;
-        String[] parts = tagName.split(":");
-        return parent.getElementsByTagNameNS(NAMESPACE.get(parts[0]), parts[1]);
+        if (parent == null || tagName == null) return null;
+
+        String[] parts = tagName.split(":", 2); // Split into at most 2 parts
+        if (parts.length == 1) {
+            // No namespace prefix
+            return parent.getElementsByTagName(tagName);
+        }
+
+        String namespace = NAMESPACE.get(parts[0]);
+        if (namespace == null) {
+            System.err.println("Namespace not found for prefix: " + parts[0]);
+            return null;
+        }
+
+        return parent.getElementsByTagNameNS(namespace, parts[1]);
     }
 }
