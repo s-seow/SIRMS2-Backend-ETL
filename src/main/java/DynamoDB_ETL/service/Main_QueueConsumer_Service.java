@@ -63,23 +63,23 @@ public class Main_QueueConsumer_Service {
             JMSConsumer consumer = context.createConsumer(queue);
 
             while (true) {
-                Message message = consumer.receive();
+        Message message = consumer.receive();
 
-                if (message instanceof TextMessage) {
-                    processTextMessage((TextMessage) message);
-                }
-
-                else if (message instanceof JmsBytesMessage) {
-                    processBytesMessage((BytesMessage) message);
-                }
-
-                else {
-                    System.out.printf("Message type received: '%s'%n", message.getJMSType());
-                    System.out.printf(" %s_%s_%s_%s%n", message.getJMSDestination(), message.getJMSMessageID(), message.getJMSReplyTo(), message.getStringProperty("JMSXDeliveryCount"));
-                    System.out.println();
-                }
-            }
+        if (message instanceof TextMessage) {
+            processTextMessage((TextMessage) message);
         }
+
+        else if (message instanceof JmsBytesMessage) {
+            processBytesMessage((BytesMessage) message);
+        }
+
+        else {
+            System.out.printf("Message type received: '%s'%n", message.getJMSType());
+            System.out.printf(" %s_%s_%s_%s%n", message.getJMSDestination(), message.getJMSMessageID(), message.getJMSReplyTo(), message.getStringProperty("JMSXDeliveryCount"));
+            System.out.println();
+        }
+    }
+}
     }
 
 
@@ -93,7 +93,7 @@ public class Main_QueueConsumer_Service {
         String formattedTimestamp = convertJMSTimestamp(message);
         String jmsDestination = message.getJMSDestination().toString();
 
-        System.out.printf(" logTimestamp: %s%n", formattedTimestamp);
+        //System.out.printf(" logTimestamp: %s%n", formattedTimestamp);
         System.out.printf(" Topic:%s%n", jmsDestination);
         System.out.println("BytesMessage received. Skipping...");
 
