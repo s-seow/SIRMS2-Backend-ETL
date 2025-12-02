@@ -18,28 +18,28 @@ Structure of the program:
 - Package: ``DynamoDB_ETL``
 - Main class: ``DynamoDB_ETL.DynamoDbETLApplication``
 - Uses:
- - AWS DynamoDB (AWS SDK v2 + Enhanced Client)
- - Solace / SWIM AMQP via Apache Qpid JMS 2.0
- - Spring Boot 3.3.2 (spring-boot-starter-web, scheduling enabled)
+    - AWS DynamoDB (AWS SDK v2 + Enhanced Client)
+    - Solace / SWIM AMQP via Apache Qpid JMS 2.0
+    - Spring Boot 3.3.2 (spring-boot-starter-web, scheduling enabled)
 - Entrypoints:
  - ``DynamoDbETLApplication`` – Spring Boot main() + @EnableScheduling
  - ``DynamoDBConfig`` – configures DynamoDbClient & DynamoDbEnhancedClient
  - ``Main_QueueConsumer_Service`` – connects to Solace, consumes JMS messages, calls:
-  - ``FIXM_DataLoader_Service``
-  - ``IWXXM_DataLoader_Service``
-  - ``METReport_DataLoader_Service``
+    - ``FIXM_DataLoader_Service``
+    - ``IWXXM_DataLoader_Service``
+    - ``METReport_DataLoader_Service``
  - ``util/*DataConverter`` – parse XML/strings and build JSON to store in DynamoDB
 
 Dependencies required:
 - Install JDK 22
 - Install Maven 3.8+
 - AWS SDK: To access DynamoDB via ``aws configure``
- - ``AWS_ACCESS_KEY_ID``
- - ``AWS_SECRET_ACCESS_KEY``
+    - ``AWS_ACCESS_KEY_ID``
+    - ``AWS_SECRET_ACCESS_KEY``
 - Solace: To access SWIM AMQP, recreated in ``src/main/resources/solace.properties``
- - Solace host URL (AMQP endpoint)
- - Solace username
- - Solace password
+    - Solace host URL (AMQP endpoint)
+    - Solace username
+    - Solace password
 
 ## How to run
 - mvn clean package
