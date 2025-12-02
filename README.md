@@ -6,14 +6,14 @@ Last used in December 2024.
 
 Last updated December 2025: Cleaned up repository and rewrote readme.
 
-What this program does:
+### What this program does:
 1. Runs an AMQP 2.0 (Qpid JMS) consumer service that provides access to flight data. 
 2. Transforms flight data (FIXM, IWXXM) in XML format to JSON for postprocessing.
 3. Parses flight data (MET) in JSON for postprocessing.
 4. Processes the standardized data by adding logTimestamp; a part of the object's primary key.
 5. Loads the processed data into AWS DynamoDB for storage and querying.
 
-Structure of the program:
+### Structure of the program:
 - Java + Spring Boot app
 - Package: ``DynamoDB_ETL``
 - Main class: ``DynamoDB_ETL.DynamoDbETLApplication``
@@ -30,7 +30,7 @@ Structure of the program:
     - ``METReport_DataLoader_Service``
  - ``util/*DataConverter`` – parse XML/strings and build JSON to store in DynamoDB
 
-Dependencies required:
+### Dependencies required:
 - Install JDK 22
 - Install Maven 3.8+
 - AWS SDK: To access DynamoDB via ``aws configure``
